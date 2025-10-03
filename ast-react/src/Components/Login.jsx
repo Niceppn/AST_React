@@ -149,7 +149,7 @@ const Login = ({ onLogin }) => {
               fontSize: '28px', 
               lineHeight: '1.3' 
             }}>
-              ระบบบริหารจัดการโรงงานเอเซียเท็กซ์ไทล์ จำกัด {API_BASE_URL}
+              ระบบบริหารจัดการโรงงานเอเซียเท็กซ์ไทล์ จำกัด
             </h2>
             
             <h4 style={{ 
@@ -163,7 +163,7 @@ const Login = ({ onLogin }) => {
             
             <div style={{ marginTop: '80px', paddingTop: '40px' }}>
               <small style={{ opacity: 0.8, fontSize: '14px' }}>
-                บริษัท เอเชียเท็กซ์ไทล์ จำกัด
+                บริษัท เอเซียเท็กซ์ไทล์ จำกัด
               </small>
               <br />
               <small style={{ opacity: 0.8, fontSize: '14px' }}>

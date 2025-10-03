@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const RawMaterialInventoryInfo = () => {
   const [loading, setLoading] = useState(false);
@@ -16,7 +17,7 @@ const RawMaterialInventoryInfo = () => {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:8000/api/raw-materials/stockMaterial');
+      const response = await fetch(`${API_BASE_URL}/api/raw-materials/stockMaterial`);
       
       if (!response.ok) {
         throw new Error(`Error จ้า: ${response.status}`);

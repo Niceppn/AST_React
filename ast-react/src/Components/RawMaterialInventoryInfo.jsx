@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 
@@ -260,7 +262,7 @@ const RawMaterialInventoryInfo = () => {
 
     try {
       // สร้าง URL พร้อม query parameters สำหรับ date filter
-      let url = 'http://localhost:8000/api/raw-materials/stockMaterial';
+      let url = `${API_BASE_URL}/api/raw-materials/stockMaterial`;
       if (dateFilter && dateFilter.start && dateFilter.end) {
         const params = new URLSearchParams({
           startDate: dateFilter.start,

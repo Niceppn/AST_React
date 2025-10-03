@@ -1,4 +1,5 @@
 // src/components/Dashboard.jsx
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -41,7 +42,7 @@ const Dashboard = () => {
   const [customerData, setCustomerData] = useState([]);
   const [threadData, setThreadData] = useState([]);
 
-  const API_URL = 'http://localhost:8000/api';
+  const API_URL = `${API_BASE_URL}/api`;
 
   useEffect(() => {
     fetchDashboardStats();
