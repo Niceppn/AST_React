@@ -1,4 +1,5 @@
 // File: Login.jsx
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 import React, { useState } from 'react';
 import { Form, Button, Alert } from 'react-bootstrap';
@@ -36,7 +37,7 @@ const Login = ({ onLogin }) => {
       
       console.log('🔐 Attempting login with:', { email: formData.email });
       
-      const response = await axios.post('http://localhost:8000/api/auth/login', {
+      const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
         email: formData.email,
         password: formData.password
       });
