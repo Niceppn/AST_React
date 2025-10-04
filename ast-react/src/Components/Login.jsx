@@ -1,5 +1,6 @@
 // File: Login.jsx
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import { API_BASE_URL } from "@/config/apiBase";
 
 import React, { useState } from 'react';
 import { Form, Button, Alert } from 'react-bootstrap';
