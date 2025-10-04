@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+import { API_BASE_URL } from "@/config/apiBase";
 
 const RawMaterialInventoryInfo = () => {
   const [loading, setLoading] = useState(false);
