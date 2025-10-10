@@ -1,4 +1,5 @@
 // File: Login.jsx
+import { API_BASE_URL } from "@/config/apiBase";
 
 import React, { useState } from 'react';
 import { Form, Button, Alert } from 'react-bootstrap';
@@ -36,7 +37,7 @@ const Login = ({ onLogin }) => {
       
       console.log('🔐 Attempting login with:', { email: formData.email });
       
-      const response = await axios.post('http://localhost:8000/api/auth/login', {
+      const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
         email: formData.email,
         password: formData.password
       });
@@ -148,7 +149,7 @@ const Login = ({ onLogin }) => {
               fontSize: '28px', 
               lineHeight: '1.3' 
             }}>
-              ระบบบริหารจัดการโรงงานเอเชียเท็กซ์ไทล์กลุ่มจำกัด
+              ระบบบริหารจัดการโรงงานเอเซียเท็กซ์ไทล์ จำกัด
             </h2>
             
             <h4 style={{ 
@@ -162,7 +163,7 @@ const Login = ({ onLogin }) => {
             
             <div style={{ marginTop: '80px', paddingTop: '40px' }}>
               <small style={{ opacity: 0.8, fontSize: '14px' }}>
-                บริษัท เอเชียเท็กซ์ไทล์ จำกัด
+                บริษัท เอเซียเท็กซ์ไทล์ จำกัด
               </small>
               <br />
               <small style={{ opacity: 0.8, fontSize: '14px' }}>

@@ -1,4 +1,5 @@
 // File: ExportFabric.jsx
+import { API_BASE_URL } from "@/config/apiBase";
 
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Form, Button, Badge, Modal } from 'react-bootstrap';
@@ -181,7 +182,7 @@ const ExportFabric = () => {
         params.append('vatType', searchFilters.vatType);
       }
       
-      const response = await axios.get(`http://localhost:8000/api/fabricouts?${params.toString()}`);
+      const response = await axios.get(`${API_BASE_URL}/api/fabricouts?${params.toString()}`);
       
       console.log('📊 API Response:', response.data);
       console.log('🔍 Applied filters:', searchFilters);

@@ -1,5 +1,7 @@
 // src/components/RawMaterialInventoryInfo.jsx
 
+import { API_BASE_URL } from "@/config/apiBase";
+
 import React, { useState, useEffect } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
@@ -314,7 +316,7 @@ const RawMaterialInventoryInfo2 = () => {
 
     try {
       // สร้าง URL พร้อม query parameters สำหรับ date filter
-      let url = 'http://localhost:8000/api/raw-materials';
+      let url = `${API_BASE_URL}/api/raw-materials`;
       if (dateFilter && dateFilter.start && dateFilter.end) {
         const params = new URLSearchParams({
           startDate: dateFilter.start,

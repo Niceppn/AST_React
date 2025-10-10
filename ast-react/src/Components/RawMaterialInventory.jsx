@@ -1,4 +1,5 @@
 // src/components/RawMaterialInventory.jsx
+import { API_BASE_URL } from "@/config/apiBase";
 
 import React, { useState, useEffect } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -32,8 +33,8 @@ const RawMaterialInventory = () => {
       
       // ใช้ API เดียวกับ Info2 สำหรับข้อมูลบรรจุภัณฑ์
       const [materialsResponse, packagesResponse] = await Promise.all([
-        fetch('http://localhost:8000/api/raw-materials/stockMaterial'),
-        fetch('http://localhost:8000/api/raw-materials')
+        fetch(`${API_BASE_URL}/api/raw-materials/stockMaterial`),
+        fetch(`${API_BASE_URL}/api/raw-materials`)
       ]);
       
       if (!materialsResponse.ok || !packagesResponse.ok) {

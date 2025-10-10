@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from "@/config/apiBase";
+
 import axios from 'axios';
 
 
@@ -14,7 +16,7 @@ const Orders = () => {
   const [filter, setFilter] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
 
-  const API_URL = 'http://localhost:8000/api';
+  const API_URL = `${API_BASE_URL}/api`;
 
   useEffect(() => {
     fetchOrders();

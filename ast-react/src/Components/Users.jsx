@@ -1,4 +1,5 @@
 // src/components/Users.jsx
+import { API_BASE_URL } from "@/config/apiBase";
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -16,7 +17,7 @@ const Users = () => {
     user_type: 'materialstaff'
   });
 
-  const API_URL = 'http://localhost:8000/api';
+  const API_URL = `${API_BASE_URL}/api`;
 
   // Generate avatar initials
   const getAvatarInitials = (name) => {
