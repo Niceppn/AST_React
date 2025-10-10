@@ -312,33 +312,7 @@ app.get('/api/fabricouts', async (req, res) => {
     // Return mock data on error
     const mockData = {
       data: [
-        {
-          id: 'TXT001',
-          createDate: '2024-01-15',
-          vatType: 'ผ้าฝ้าย 100%',
-          vatNo: '150',
-          fabricStruct: 'หลา',
-          amount: '2,500',
-          status: 'พร้อมส่ง'
-        },
-        {
-          id: 'TXT002', 
-          createDate: '2024-01-16',
-          vatType: 'ผ้าไหม',
-          vatNo: '80',
-          fabricStruct: 'หลา', 
-          amount: '4,200',
-          status: 'รอดำเนินการ'
-        },
-        {
-          id: 'TXT003',
-          createDate: '2024-01-17', 
-          vatType: 'ผ้าโพลีเอสเตอร์',
-          vatNo: '200',
-          fabricStruct: 'หลา',
-          amount: '1,800',
-          status: 'กำลังจัดส่ง'
-        }
+        
       ],
       pagination: {
         page: 1,
@@ -350,6 +324,85 @@ app.get('/api/fabricouts', async (req, res) => {
       }
     };
     console.log('🔄 Returning mock data due to error');
+    res.json(mockData);
+  }
+});
+
+// Stockfabrics API endpoint
+app.get('/api/stockfabrics', async (req, res) => {
+  console.log('📦 Stockfabrics API called');
+  
+  try {
+    // Test if pool is available
+    if (!pool) {
+      throw new Error('Database pool not available');
+    }
+    
+    // Get pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = (page - 1) * limit;
+    
+    // Get filter parameters
+    const { fabricStruct, month, year } = req.query;
+    
+    // Build WHERE clause for filters
+    let whereClause = [];
+    let queryParams = [];
+    
+    if (fabricStruct && fabricStruct !== '') {
+      whereClause.push('(fabricStruct = ? OR fabricId = ? OR refId = ?)');
+      queryParams.push(fabricStruct, fabricStruct, fabricStruct);
+    }
+    
+    if (month && month !== '') {
+      whereClause.push('MONTH(createDate) = ?');
+      queryParams.push(parseInt(month));
+    }
+    
+    if (year && year !== '') {
+      whereClause.push('YEAR(createDate) = ?');
+      queryParams.push(parseInt(year));
+    }
+    
+    const whereSQL = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
+    
+    // Build main query
+    const mainQuery = `SELECT * FROM stockfabrics ${whereSQL} ORDER BY createDate DESC LIMIT ? OFFSET ?`;
+    const countQuery = `SELECT COUNT(*) as total FROM stockfabrics ${whereSQL}`;
+    
+    console.log(`🔍 Executing stockfabrics query: ${mainQuery}`);
+    console.log(`📊 Filter params:`, { fabricStruct, month, year });
+    
+    // Execute main query with filters
+    const [rows] = await pool.execute(mainQuery, [...queryParams, limit, offset]);
+    console.log(`✅ Stockfabrics query successful, found ${rows.length} rows`);
+    
+    // Get total count for pagination with same filters
+    const [countResult] = await pool.execute(countQuery, queryParams);
+    const total = countResult[0].total;
+    
+    const response = {
+      data: rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: (page * limit) < total,
+        hasPrev: page > 1
+      }
+    };
+    
+    console.log(`📄 Returning stockfabrics page ${page} of ${response.pagination.totalPages}, ${rows.length} items`);
+    res.json(response);
+    
+  } catch (error) {
+    console.error('❌ Error fetching stockfabrics:', error.message);
+    console.error('Error details:', error);
+    
+    //
+    console.log('🔄 Returning mock stockfabrics data due to error');
     res.json(mockData);
   }
 });

@@ -776,7 +776,7 @@ const returnedDataBox = (result.data.htrpackages || [])
                     <div className="alert alert-info py-2 mb-0" style={{ borderRadius: '8px' }}>
                       <i className="bi bi-info-circle me-2"></i>
                       <small>
-                        แสดงข้อมูลตั้งแต่วันที่ <strong>{new Date(startDate).toLocaleDateString('th-TH')}</strong> 
+                        dddd <strong>{new Date(startDate).toLocaleDateString('th-TH')}</strong> 
                         ถึงวันที่ <strong>{new Date(endDate).toLocaleDateString('th-TH')}</strong>
                       </small>
                     </div>

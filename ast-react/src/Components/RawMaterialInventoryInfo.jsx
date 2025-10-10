@@ -49,17 +49,12 @@ const RawMaterialInventoryInfo = () => {
       // Set worksheet properties
       worksheet.properties.defaultRowHeight = 20;
       
-      // Add title
-      worksheet.mergeCells('A1:H2');
+            // Add title
+      worksheet.mergeCells('A1:C2');
       const titleCell = worksheet.getCell('A1');
-      titleCell.value = 'รายงานตรวจสอบวัตถุดิบ น้ำหนักสุทธิ';
-      titleCell.font = { size: 16, bold: true, color: { argb: '2F5496' } };
+      titleCell.value = 'บริษัท เอเซียเท็กซ์ไทล์ จำกัด';
+      titleCell.font = { size: 14, bold: true };
       titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-      titleCell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'E7F3FF' }
-      };
 
       // Add date
       worksheet.mergeCells('A3:H3');
@@ -251,6 +246,196 @@ const RawMaterialInventoryInfo = () => {
     } catch (error) {
       console.error('Error exporting to Excel:', error);
       alert('เกิดข้อผิดพลาดในการส่งออกข้อมูล');
+    }
+  };
+
+  // Export to Excel function V2 (A4 Print - คงเหลืออย่างเดียว)
+  const exportToExcelV2 = async () => {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('รายงานวัตถุดิบ V2');
+
+      // Set worksheet properties for A4 printing
+      worksheet.properties.defaultRowHeight = 18;
+      
+      // Set page setup for A4 printing
+      worksheet.pageSetup = {
+        paperSize: 9, // A4 paper size
+        orientation: 'portrait', // แนวตั้งเพราะคอลัมน์น้อยลง
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 0,
+        margins: {
+          left: 0.5,
+          right: 0.5,
+          top: 0.75,
+          bottom: 0.75,
+          header: 0.3,
+          footer: 0.3
+        },
+        scale: 100,
+        horizontalCentered: true,
+        verticalCentered: false
+      };
+
+      // Set print area and other print settings
+      worksheet.views = [{
+        showGridLines: true,
+        showRowColHeaders: false,
+        zoomScale: 100
+      }];
+      
+      // Add title
+      worksheet.mergeCells('A1:C1');
+      const titleCell = worksheet.getCell('A1');
+      titleCell.value = 'บริษัท เอเซียเท็กซ์ไทล์ จำกัด';
+      titleCell.font = { size: 14, bold: true,  };
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+     
+
+      worksheet.mergeCells('A2:C2');
+      const titleCell2 = worksheet.getCell('A2');
+      titleCell2.value = 'วัตถุดิบคงเหลือ ';
+      titleCell2.font = { size: 14, bold: true};
+      titleCell2.alignment = { horizontal: 'center', vertical: 'middle' };
+      
+      // Add date range info to Excel if filter is applied
+      if (isFilterApplied && startDate && endDate) {
+        worksheet.mergeCells('A3:C3');
+        const dateRangeCell = worksheet.getCell('A3');
+        dateRangeCell.value = `ณ วันที่: ${new Date(startDate).toLocaleDateString('th-TH')} - ${new Date(endDate).toLocaleDateString('th-TH')}`;
+        dateRangeCell.font = { size: 14, bold: true};
+        dateRangeCell.alignment = { horizontal: 'center' };
+      }
+
+      // Add headers - เพิ่มคอลัมน์ลำดับที่
+      const headerRowStart = isFilterApplied ? 6 : 5;
+      const headerRow1 = worksheet.getRow(headerRowStart);
+      headerRow1.values = [
+        'ลำดับที่',
+        'รายการ',
+        'จำนวน (ปอนด์)'
+      ];
+
+      // ไม่ต้องมี header row ที่ 2 เพราะไม่มีหน่วยย่อย
+      // Merge header cells
+      // ไม่ต้อง merge เพราะเป็น header เดียว
+
+      // Style headers
+      const headerCells = [`A${headerRowStart}`, `B${headerRowStart}`, `C${headerRowStart}`];
+      headerCells.forEach(cellAddr => {
+        const cell = worksheet.getCell(cellAddr);
+        cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 10 };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: '1F4E79' }
+        };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = {
+          top: { style: 'medium' },
+          left: { style: 'medium' },
+          bottom: { style: 'medium' },
+          right: { style: 'medium' }
+        };
+      });
+
+      // Add data rows - เพิ่มคอลัมน์ลำดับที่
+      rawMaterialData.forEach((item, index) => {
+        const rowNum = headerRowStart + 1 + index; // เปลี่ยนจาก +2 เป็น +1 เพราะไม่มี sub header
+        const row = worksheet.getRow(rowNum);
+        
+        row.values = [
+          index + 1, // ลำดับที่
+          item.yarnType || 'N/A',
+          parseFloat(item.remainingWeightPNet || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+        ];
+
+        // Style data rows
+        row.eachCell((cell, colNumber) => {
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'B7B7B7' } },
+            left: { style: 'thin', color: { argb: 'B7B7B7' } },
+            bottom: { style: 'thin', color: { argb: 'B7B7B7' } },
+            right: { style: 'thin', color: { argb: 'B7B7B7' } }
+          };
+          
+          if (colNumber === 1) {
+            // ลำดับที่ - จัดกลาง
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.font = { bold: true, size: 9 };
+          } else if (colNumber === 2) {
+            // ชนิดด้าย - จัดซ้าย
+            cell.alignment = { horizontal: 'left', vertical: 'middle' };
+            cell.font = { bold: true, size: 9 };
+          } else {
+            // น้ำหนัก - จัดกลาง
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.font = { size: 9 };
+          }
+
+          // Alternate row colors
+          if (index % 2 === 0) {
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFFFFF' }
+            };
+          } else {
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFFFFF' }
+            };
+          }
+        });
+      });
+
+      // Add summary row
+      // const summaryRowNum = headerRowStart + 1 + rawMaterialData.length; // เปลี่ยนจาก +2 เป็น +1
+      // const summaryRow = worksheet.getRow(summaryRowNum + 1);
+      // summaryRow.values = [
+      //   '', // เว้นว่างคอลัมน์ลำดับที่
+      //   'รวมทั้งหมด',
+      //   rawMaterialData.reduce((sum, item) => sum + parseFloat(item.remainingWeightPNet || 0), 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+      // ];
+
+      // // Style summary row
+      // summaryRow.eachCell((cell) => {
+      //   cell.font = { bold: true, size: 10 };
+      //   cell.fill = {
+      //     type: 'pattern',
+      //     pattern: 'solid',
+      //     fgColor: { argb: 'FFFFFF' }
+      //   };
+      //   cell.border = {
+      //     top: { style: 'medium', },
+      //     left: { style: 'medium', },
+      //     bottom: { style: 'medium',  },
+      //     right: { style: 'medium',  }
+      //   };
+      //   cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      // });
+
+      // Set column widths optimized for A4 portrait - เพิ่มเป็น 3 คอลัมน์
+      worksheet.columns = [
+        { width: 10 }, // ลำดับที่ - แคบ
+        { width: 35 }, // ชนิดด้าย - ขยายเพราะมีพื้นที่เหลือมาก
+        { width: 30 }  // คงเหลือ ปอนด์ - ขยาย
+      ];
+
+      // Generate Excel file
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+      
+      const fileName = `รายงานตรวจสอบวัตถุดิบ_คงเหลือ_ปอนด์_เท่านั้น_${new Date().toLocaleDateString('th-TH').replace(/\//g, '-')}.xlsx`;
+      saveAs(blob, fileName);
+
+    } catch (error) {
+      console.error('Error exporting to Excel V2:', error);
+      alert('เกิดข้อผิดพลาดในการส่งออกข้อมูล (คงเหลือ - ปอนด์ เท่านั้น)');
     }
   };
 
@@ -753,24 +938,24 @@ const RawMaterialInventoryInfo = () => {
                             </td>
                             {/* นำเข้า */}
                             <td className="text-center py-2 px-1" style={{ fontSize: '0.85rem', borderRight: '1px solid #dee2e6' }}>
-                              <span className="fw-bold text-success">{formatNumber(parseFloat(item.importTotalWeightPNet || 0).toFixed(2))}</span>
+                              <span className="fw-bold text-success">{parseFloat(item.importTotalWeightPNet || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</span>
                             </td>
                             <td className="text-center py-2 px-1" style={{ fontSize: '0.85rem', borderRight: '1px solid #dee2e6' }}>
-                              <span className="fw-bold text-success">{formatNumber(parseFloat(item.importTotalWeightKgNet || 0).toFixed(2))}</span>
+                              <span className="fw-bold text-success">{parseFloat(item.importTotalWeightKgNet || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</span>
                             </td>
                             {/* นำออก */}
                             <td className="text-center py-2 px-1" style={{ fontSize: '0.85rem', borderRight: '1px solid #dee2e6' }}>
-                              <span className="fw-bold text-warning">{formatNumber(parseFloat(item.exportTotalWeightPNet || 0).toFixed(2))}</span>
+                              <span className="fw-bold text-warning">{parseFloat(item.exportTotalWeightPNet || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</span>
                             </td>
                             <td className="text-center py-2 px-1" style={{ fontSize: '0.85rem', borderRight: '1px solid #dee2e6' }}>
-                              <span className="fw-bold text-warning">{formatNumber(parseFloat(item.exportTotalWeightKgNet || 0).toFixed(2))}</span>
+                              <span className="fw-bold text-warning">{parseFloat(item.exportTotalWeightKgNet || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</span>
                             </td>
                             {/* คงเหลือ */}
                             <td className="text-center py-2 px-1" style={{ fontSize: '0.85rem', borderRight: '1px solid #dee2e6' }}>
-                              <span className="fw-bold text-primary">{formatNumber(parseFloat(item.remainingWeightPNet || 0).toFixed(2))}</span>
+                              <span className="fw-bold text-primary">{parseFloat(item.remainingWeightPNet || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</span>
                             </td>
                             <td className="text-center py-2 px-1" style={{ fontSize: '0.85rem' }}>
-                              <span className="fw-bold text-primary">{formatNumber(parseFloat(item.remainingWeightKgNet || 0).toFixed(2))}</span>
+                              <span className="fw-bold text-primary">{parseFloat(item.remainingWeightKgNet || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</span>
                             </td>
                           </tr>
                         ))
@@ -815,13 +1000,22 @@ const RawMaterialInventoryInfo = () => {
                       รีเฟรช
                     </button>
                     <button 
-                      className="btn btn-primary btn-sm" 
+                      className="btn btn-primary btn-sm me-2" 
                       style={{ borderRadius: '8px' }}
                       onClick={exportToExcel}
                       disabled={loading || rawMaterialData.length === 0}
                     >
                       <i className="bi bi-download me-1"></i>
                       ส่งออกข้อมูล
+                    </button>
+                    <button 
+                      className="btn btn-success btn-sm" 
+                      style={{ borderRadius: '8px' }}
+                      onClick={exportToExcelV2}
+                      disabled={loading || rawMaterialData.length === 0}
+                    >
+                      <i className="bi bi-printer me-1"></i>
+                      ส่งออกข้อมูล 
                     </button>
                   </div>
                 </div>
