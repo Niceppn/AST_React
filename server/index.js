@@ -235,98 +235,108 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/raw-materials', rawMaterialRoutes);
 app.use('/api/orders', orders);
-
-// Fabricouts API endpoint
+// ===============================
+// Fabricouts API (refId grouped)
+// ===============================
 app.get('/api/fabricouts', async (req, res) => {
-  console.log('📊 Fabricouts API called');
-  
+  console.log('📊 Fabricouts API called, query:', req.query);
+
+  // helper รวมข้อมูลต่อใบส่ง
+  const groupAndSumData = (data) => {
+    const grouped = {};
+
+    data.forEach((item) => {
+      const key =
+        item.refId ||
+        `${item.vatType || ''}-${item.vatNo || ''}-${item.createDate || ''}`;
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          ...item,
+          billNumber:
+            item.refId || `${item.vatType || ''} ${item.vatNo || ''}`.trim(),
+          _rowCount: 0,
+          fold: 0,
+          sumYard: 0,
+        };
+      }
+
+      grouped[key]._rowCount += 1;
+      grouped[key].fold = grouped[key]._rowCount;
+
+      grouped[key].sumYard += Number(item.sumYard) || 0;
+    });
+
+    return Object.values(grouped).map((item) => {
+      const { _rowCount, ...rest } = item;
+      return rest;
+    });
+  };
+
   try {
-    // Test if pool is available
-    if (!pool) {
-      throw new Error('Database pool not available');
+    if (!pool) throw new Error('Database pool not available');
+
+    const { month, year, vatType, limit } = req.query;
+
+    const isEmpty = (v) =>
+      v === undefined || v === null || v === '' || v === 'all' || v === 'ทั้งหมด';
+
+    const where = [];
+    const params = [];
+
+    if (!isEmpty(month)) {
+      where.push('MONTH(createDate) = ?');
+      params.push(parseInt(month));
     }
-    
-    // Get pagination parameters
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
-    const offset = (page - 1) * limit;
-    
-    // Get filter parameters
-    const { month, year, vatType } = req.query;
-    
-    // Build WHERE clause for filters
-    let whereClause = [];
-    let queryParams = [];
-    
-    if (month && month !== '') {
-      whereClause.push('MONTH(createDate) = ?');
-      queryParams.push(parseInt(month));
+
+    if (!isEmpty(year)) {
+      where.push('YEAR(createDate) = ?');
+      params.push(parseInt(year));
     }
-    
-    if (year && year !== '') {
-      whereClause.push('YEAR(createDate) = ?');
-      queryParams.push(parseInt(year));
+
+    if (!isEmpty(vatType)) {
+      where.push('vatType = ?');
+      params.push(vatType);
     }
-    
-    if (vatType && vatType !== '') {
-      whereClause.push('vatType = ?');
-      queryParams.push(vatType);
-    }
-    
-    const whereSQL = whereClause.length > 0 ? `WHERE ${whereClause.join(' AND ')}` : '';
-    
-    // Build main query
-    const mainQuery = `SELECT * FROM fabricouts ${whereSQL} ORDER BY createDate DESC LIMIT ? OFFSET ?`;
-    const countQuery = `SELECT COUNT(*) as total FROM fabricouts ${whereSQL}`;
-    
-    console.log(`🔍 Executing filtered query: ${mainQuery}`);
-    console.log(`📊 Filter params:`, { month, year, vatType });
-    
-    // Execute main query with filters
-    const [rows] = await pool.execute(mainQuery, [...queryParams, limit, offset]);
-    console.log(`✅ Query successful, found ${rows.length} rows`);
-    
-    // Get total count for pagination with same filters
-    const [countResult] = await pool.execute(countQuery, queryParams);
-    const total = countResult[0].total;
-    
-    const response = {
-      data: rows,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: (page * limit) < total,
-        hasPrev: page > 1
-      }
-    };
-    
-    console.log(`📄 Returning page ${page} of ${response.pagination.totalPages}, ${rows.length} items`);
-    res.json(response);
-    
-  } catch (error) {
-    console.error('❌ Error fetching fabricouts:', error.message);
-    console.error('Error details:', error);
-    
-    // Return mock data on error
-    const mockData = {
-      data: [
-        
-      ],
-      pagination: {
-        page: 1,
-        limit: 50,
-        total: 3,
-        totalPages: 1,
-        hasNext: false,
-        hasPrev: false
-      }
-    };
-    console.log('🔄 Returning mock data due to error');
-    res.json(mockData);
+
+    const whereSQL = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+
+    const finalLimit =
+      !isNaN(parseInt(limit)) && parseInt(limit) > 0 ? parseInt(limit) : 15000;
+
+    const sql = `
+      SELECT * 
+      FROM fabricouts
+      ${whereSQL}
+      ORDER BY createDate DESC
+      LIMIT ?
+    `;
+
+    console.log('🔍 SQL:', sql.trim());
+    console.log('🔍 Params:', [...params, finalLimit]);
+
+    const [rows] = await pool.execute(sql, [...params, finalLimit]);
+    console.log(`✅ Query OK: ${rows.length} raw rows`);
+
+    const groupedData = groupAndSumData(rows);
+
+    console.log(`📦 Grouped result: ${groupedData.length} bills`);
+
+    return res.json({
+      data: groupedData,
+      pagination: null,
+    });
+  } catch (err) {
+    console.error('❌ Error fabricouts:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'เกิดข้อผิดพลาดในการดึงข้อมูล fabricouts',
+      error: err.message,
+    });
   }
 });
+
+// Fabricouts API endpoint
 
 // Stockfabrics API endpoint
 app.get('/api/stockfabrics', async (req, res) => {
