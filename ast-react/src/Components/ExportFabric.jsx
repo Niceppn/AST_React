@@ -134,29 +134,40 @@ const ExportFabric = () => {
     return { total: totalStockout, details: details };
   };
 
-  // Function to group and sum data by bill number
+  // ✅ Function to group and sum data by refId (1 record = 1 fold)
   const groupAndSumData = (data) => {
     const grouped = {};
-    
-    data.forEach(item => {
-      const billNumber = `${item.vatType}${item.vatNo}`;
-      
-      if (grouped[billNumber]) {
-        // Sum the values for existing bill
-        grouped[billNumber].fold = (parseInt(grouped[billNumber].fold) || 0) + (parseInt(item.fold) || 0);
-        grouped[billNumber].sumYard = (parseInt(grouped[billNumber].sumYard) || 0) + (parseInt(item.sumYard) || 0);
-      } else {
-        // Create new entry for new bill
-        grouped[billNumber] = {
+
+    data.forEach((item) => {
+      // ใช้ refId เป็น key หลักของแต่ละใบส่ง
+      const key =
+        item.refId ||
+        `${item.vatType || ""}-${item.vatNo || ""}-${item.createDate || ""}`;
+
+      if (!grouped[key]) {
+        grouped[key] = {
           ...item,
-          fold: parseInt(item.fold) || 0,
-          sumYard: parseInt(item.sumYard) || 0,
-          billNumber: billNumber
+          // ✅ แสดงเลขที่บิลเป็น A 4804 (ไม่ใช่ refId)
+          billNumber: `${item.vatType || ""} ${item.vatNo || ""}`.trim(),
+          _rowCount: 0, // ใช้นับจำนวนพับ
+          fold: 0,
+          sumYard: 0,
         };
       }
+
+      // 1 record = 1 พับ
+      grouped[key]._rowCount += 1;
+      grouped[key].fold = grouped[key]._rowCount;
+
+      // รวมจำนวนหลา
+      grouped[key].sumYard += Number(item.sumYard) || 0;
     });
-    
-    return Object.values(grouped);
+
+    // ไม่ต้องส่ง _rowCount ออกไป
+    return Object.values(grouped).map((item) => {
+      const { _rowCount, ...rest } = item;
+      return rest;
+    });
   };
 
   const fetchFabricouts = async (searchFilters = filters) => {
@@ -196,7 +207,7 @@ const ExportFabric = () => {
         rawData = Array.isArray(response.data) ? response.data : [];
       }
       
-      // Group and sum the data by bill number
+      // ✅ Group and sum the data by refId
       const groupedData = groupAndSumData(rawData);
       
       // Sort data by date (month and year) from oldest to newest
@@ -213,23 +224,18 @@ const ExportFabric = () => {
       console.error('❌ Error fetching fabricouts:', error);
       setError('ไม่สามารถโหลดข้อมูลได้');
       
-      // Mock data as fallback - with duplicate bills for testing
-      const mockData = [
-        
-      ];
+      // Mock data as fallback
+      const mockData = [];
       
-      // Group and sum the mock data
       const groupedMockData = groupAndSumData(mockData);
-      
-      // Sort mock data by date as well
       const sortedMockData = groupedMockData.sort((a, b) => {
         const dateA = new Date(a.createDate);
         const dateB = new Date(b.createDate);
-        return dateA - dateB; // Sort from oldest to newest
+        return dateA - dateB;
       });
       
       setFabricouts(sortedMockData);
-      setPagination(null); // No pagination for mock data
+      setPagination(null);
     } finally {
       setLoading(false);
     }
@@ -303,7 +309,7 @@ const ExportFabric = () => {
     }
   };
 
-  // Excel Export Function
+  // Excel Export Function (เหมือนเดิม)
   const exportToExcel = async () => {
     try {
       // Filter data based on export filters
@@ -338,20 +344,19 @@ const ExportFabric = () => {
         });
       }
 
-      // Sort filtered data by date (month from low to high)
+      // Sort filtered data by date
       filteredData.sort((a, b) => {
         const dateA = new Date(a.createDate);
         const dateB = new Date(b.createDate);
-        return dateA - dateB; // Sort from oldest to newest (เดือนน้อยไปมาก)
+        return dateA - dateB;
       });
 
-      // Create a new workbook
+      // === Excel logic ด้านล่างเหมือนเดิม ผมไม่แตะ ===
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('รายงานสินค้าและสำเร็จรูป');
 
-      // Set page setup for A4 printing
       worksheet.pageSetup = {
-        paperSize: 9, // A4
+        paperSize: 9,
         orientation: 'portrait',
         margins: {
           left: 0.5,
@@ -363,26 +368,21 @@ const ExportFabric = () => {
         },
         fitToPage: true,
         fitToWidth: 1,
-        fitToHeight: 0, // Auto-fit height
+        fitToHeight: 0,
         scale: 100,
         horizontalCentered: true,
         verticalCentered: false
       };
 
-      // Header Section - รายงานสินค้าและสำเร็จรูป
       const titleRow = worksheet.addRow(['รายงานสินค้าและสำเร็จรูป']);
       worksheet.mergeCells('A1:F1');
       titleRow.getCell(1).font = { bold: true, size: 16 };
       titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
-      // Company info section
       worksheet.addRow(['']);
       const companyRow = worksheet.addRow(['ชื่อผู้ประกอบการ', 'บริษัท เอเชียเท็กซ์ไทล์ จำกัด']);
       worksheet.mergeCells('B3:F3');
-      
-      // Add dotted line under company name with vertical alignment
 
-   
       const locationRow = worksheet.addRow(['ชื่อสถานประกอบการ', exportFilters.companyLocation || '']);
       worksheet.mergeCells('B5:F5');
       
@@ -392,11 +392,9 @@ const ExportFabric = () => {
       const categoryRow = worksheet.addRow(['รายการ/ชนิด', 'บริษัทมีใบกำกับเต็ม', 'ลาย']);
       worksheet.mergeCells('B7:E7');
 
-      // Add spacing
       worksheet.addRow(['']);
       worksheet.addRow(['']);
 
-      // Table Headers - Row 10 (First header row)
       const headerRow1 = worksheet.addRow([
         'เลขที่ใบสำคัญ',
         'วัน เดือน ปี',
@@ -406,7 +404,6 @@ const ExportFabric = () => {
         'หมายเหตุ'
       ]);
 
-      // Table Headers - Row 11 (Second header row)
       const headerRow2 = worksheet.addRow([
         '',
         '',
@@ -416,13 +413,11 @@ const ExportFabric = () => {
         ''
       ]);
 
-      // Merge header cells
-      worksheet.mergeCells('A10:A11'); // เลขที่ใบกำกับ
-      worksheet.mergeCells('B10:B11'); // วัน เดือน ปี
-      worksheet.mergeCells('C10:E10'); // ปริมาณ (horizontal merge)
-      worksheet.mergeCells('F10:F11'); // หมายเหตุ
+      worksheet.mergeCells('A10:A11');
+      worksheet.mergeCells('B10:B11');
+      worksheet.mergeCells('C10:E10');
+      worksheet.mergeCells('F10:F11');
 
-      // Style both header rows
       [headerRow1, headerRow2].forEach(headerRow => {
         headerRow.eachCell((cell, colNumber) => {
           cell.fill = {
@@ -445,19 +440,14 @@ const ExportFabric = () => {
             vertical: 'middle'
           };
         });
-        
-        // Set row height for better appearance
         headerRow.height = 20;
       });
 
-      // Add data rows
       let runningBalance = 0;
       let totalStockout = 0;
-      let currentMonth = null;
       let monthlyData = {};
-      let allStockoutData = {}; // Store all stockout data by month
+      let allStockoutData = {};
       
-      // First, get all stockout data for the selected fabric
       if (exportFilters.fabricCode) {
         const allStockouts = stockfabrics.filter(stock => {
           const fabricMatch = stock.fabricStruct === exportFilters.fabricCode || 
@@ -466,7 +456,6 @@ const ExportFabric = () => {
           return fabricMatch;
         });
         
-        // Group stockouts by month
         allStockouts.forEach(stock => {
           if (stock.createDate) {
             const stockDate = new Date(stock.createDate);
@@ -490,7 +479,6 @@ const ExportFabric = () => {
         });
       }
       
-      // Group receive data by month for monthly summaries
       filteredData.forEach((item) => {
         const itemDate = new Date(item.createDate);
         const monthKey = `${itemDate.getFullYear()}-${(itemDate.getMonth() + 1).toString().padStart(2, '0')}`;
@@ -508,13 +496,11 @@ const ExportFabric = () => {
         monthlyData[monthKey].totalReceived += parseInt(item.sumYard) || 0;
       });
       
-      // Merge all months (both receive and stockout)
       const allMonths = new Set([
         ...Object.keys(monthlyData),
         ...Object.keys(allStockoutData)
       ]);
       
-      // Process each month
       Array.from(allMonths).sort().forEach((monthKey) => {
         const monthReceiveData = monthlyData[monthKey] || { 
           monthName: allStockoutData[monthKey]?.monthName || monthKey,
@@ -529,13 +515,11 @@ const ExportFabric = () => {
         
         let monthlyStockoutTotal = 0;
         
-        // Add receive rows if any
         monthReceiveData.items.forEach((item, index) => {
           const quantity = parseInt(item.sumYard) || 0;
           const stockoutResult = getStockoutQuantity(item.fabricStruct, item.createDate);
           const stockoutQty = stockoutResult.total;
           
-          // Calculate balance
           const balance = quantity - stockoutQty;
           runningBalance = Math.max(0, runningBalance + balance);
           
@@ -543,14 +527,13 @@ const ExportFabric = () => {
           
           const receiveRow = worksheet.addRow([
             ``,
-            formatDate(item.createDate), // Show receive date
-            quantity, // จำนวนรับ
-            '', // จำนวนจ่าย - empty for receive row
-            runningBalance, // จำนวนเหลือ (running balance)
-            'รับ' // หมายเหตุ - indicate this is receive
+            formatDate(item.createDate),
+            quantity,
+            '',
+            runningBalance,
+            'รับ'
           ]);
 
-          // Style receive row
           receiveRow.eachCell((cell, colNumber) => {
             cell.border = {
               top: { style: 'thin' },
@@ -558,36 +541,30 @@ const ExportFabric = () => {
               bottom: { style: 'thin' },
               right: { style: 'thin' }
             };
-            
-            // Center align for all columns
             if ([1, 2, 3, 4, 5, 6].includes(colNumber)) {
               cell.alignment = {
                 horizontal: 'center',
                 vertical: 'middle'
               };
             }
-            
-            // Number format for quantity columns
             if ([3, 4, 5].includes(colNumber)) {
               cell.numFmt = '#,##0';
             }
           });
         });
         
-        // Add stockout rows for this month
         monthStockoutData.stockouts.forEach(stockout => {
           monthlyStockoutTotal += stockout.quantity;
           
           const stockoutRow = worksheet.addRow([
             ``,
-            formatDate(stockout.date), // Show stockout date
-            '', // จำนวนรับ - empty for stockout row
-            stockout.quantity, // จำนวนจ่าย
-            '', // จำนวนเหลือ - empty for stockout row
-            'จ่าย' // หมายเหตุ - indicate this is stockout
+            formatDate(stockout.date),
+            '',
+            stockout.quantity,
+            '',
+            'จ่าย'
           ]);
 
-          // Style stockout row
           stockoutRow.eachCell((cell, colNumber) => {
             cell.border = {
               top: { style: 'thin' },
@@ -595,23 +572,18 @@ const ExportFabric = () => {
               bottom: { style: 'thin' },
               right: { style: 'thin' }
             };
-            
-            // Center align for all columns
             if ([1, 2, 3, 4, 5, 6].includes(colNumber)) {
               cell.alignment = {
                 horizontal: 'center',
                 vertical: 'middle'
               };
             }
-            
-            // Number format for quantity columns
             if ([3, 4, 5].includes(colNumber)) {
               cell.numFmt = '#,##0';
             }
           });
         });
         
-        // Add monthly summary row
         const monthlyBalance = monthReceiveData.totalReceived - monthlyStockoutTotal;
         const monthlySummaryRow = worksheet.addRow([
           `รวม ${monthReceiveData.monthName}`,
@@ -622,7 +594,6 @@ const ExportFabric = () => {
           ''
         ]);
 
-        // Style monthly summary row
         monthlySummaryRow.eachCell((cell, colNumber) => {
           cell.border = {
             top: { style: 'medium' },
@@ -634,7 +605,7 @@ const ExportFabric = () => {
           cell.fill = {
             type: 'pattern',
             pattern: 'solid',
-            fgColor: { argb: 'FFE6F3FF' } // Light blue background
+            fgColor: { argb: 'FFE6F3FF' }
           };
           if ([1, 2, 3, 4, 5].includes(colNumber)) {
             cell.alignment = {
@@ -647,11 +618,9 @@ const ExportFabric = () => {
           }
         });
         
-        // Add spacing after each month
         worksheet.addRow(['']);
       });
 
-      // Add final total row
       const totalQuantity = filteredData.reduce((sum, item) => sum + (parseInt(item.sumYard) || 0), 0);
       const totalStockoutFromAllMonths = Object.values(allStockoutData).reduce((sum, monthData) => sum + monthData.totalStockout, 0);
       const finalBalance = totalQuantity - totalStockoutFromAllMonths;
@@ -660,11 +629,10 @@ const ExportFabric = () => {
         '',
         totalQuantity,
         totalStockoutFromAllMonths,
-        Math.max(0, finalBalance), // Ensure final balance doesn't go negative
+        Math.max(0, finalBalance),
         ''
       ]);
 
-      // Style final total row
       totalRow.eachCell((cell, colNumber) => {
         cell.border = {
           top: { style: 'double' },
@@ -676,7 +644,7 @@ const ExportFabric = () => {
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: 'FFFFCC00' } // Yellow background
+          fgColor: { argb: 'FFFFCC00' }
         };
         if ([1, 2, 3, 4, 5].includes(colNumber)) {
           cell.alignment = {
@@ -689,37 +657,30 @@ const ExportFabric = () => {
         }
       });
 
-      // Set column widths to match the document
       worksheet.columns = [
-        { width: 20 },  // เลขที่ใบสำคัญ
-        { width: 15 },  // วัน เดือน ปี
-        { width: 12 },  // จำนวนรับ
-        { width: 12 },  // จำนวนจ่าย
-        { width: 12 },  // จำนวนเหลือ
-        { width: 15 }   // หมายเหตุ
+        { width: 20 },
+        { width: 15 },
+        { width: 12 },
+        { width: 12 },
+        { width: 12 },
+        { width: 15 }
       ];
 
-      // Style company info section text only (no borders)
-      // Just keep the bold text styling without borders
-
-      // Style company info section
       worksheet.getCell('A3').font = { bold: true };
-      worksheet.getCell('A4').font = { bold: true }; // dotted line row
+      worksheet.getCell('A4').font = { bold: true };
       worksheet.getCell('A5').font = { bold: true };
       worksheet.getCell('A6').font = { bold: true };
       worksheet.getCell('A7').font = { bold: true };
 
-      // Generate Excel file
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       
-      // Create filename with export filters
       const filename = `รายงานสินค้าและจำนวนขาย_${exportFilters.fabricCode || 'ทั้งหมด'}_${exportFilters.fromMonth ? getMonthName(exportFilters.fromMonth) : 'ทั้งหมด'}_${exportFilters.fromYear || new Date().getFullYear()}_${formatDate(new Date().toISOString()).replace(/\//g, '-')}.xlsx`;
       
       saveAs(blob, filename);
       
       console.log('✅ Excel file exported successfully');
-      handleCloseExportModal(); // Close modal after successful export
+      handleCloseExportModal();
     } catch (error) {
       console.error('❌ Error exporting to Excel:', error);
       alert('เกิดข้อผิดพลาดในการส่งออกไฟล์ Excel');
@@ -729,16 +690,13 @@ const ExportFabric = () => {
   // Excel Export Function V2 (A4 Print - สรุป 3 คอลัมน์)
   const exportToExcelV2 = async () => {
     try {
-      // Create a new workbook
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('สรุปรายงานสินค้า V2');
 
-      // Set worksheet properties for A4 printing
       worksheet.properties.defaultRowHeight = 18;
       
-      // Set page setup for A4 printing
       worksheet.pageSetup = {
-        paperSize: 9, // A4 paper size
+        paperSize: 9,
         orientation: 'portrait',
         fitToPage: true,
         fitToWidth: 1,
@@ -756,14 +714,12 @@ const ExportFabric = () => {
         verticalCentered: false
       };
 
-      // Set print area and other print settings
       worksheet.views = [{
         showGridLines: true,
         showRowColHeaders: false,
         zoomScale: 100
       }];
       
-      // Add title
       worksheet.mergeCells('A1:C1');
       const titleCell = worksheet.getCell('A1');
       titleCell.value = 'บริษัท เอเซียเท็กซ์ไทล์ จำกัด';
@@ -776,14 +732,12 @@ const ExportFabric = () => {
       titleCell2.font = { size: 14, bold: true };
       titleCell2.alignment = { horizontal: 'center', vertical: 'middle' };
       
-      // Add date info
       worksheet.mergeCells('A3:C3');
       const dateCell = worksheet.getCell('A3');
       dateCell.value = `ณ วันที่: ${formatDate(new Date().toISOString())}`;
       dateCell.font = { size: 12, bold: true };
       dateCell.alignment = { horizontal: 'center' };
 
-      // Add headers
       const headerRowStart = 5;
       const headerRow1 = worksheet.getRow(headerRowStart);
       headerRow1.values = [
@@ -792,7 +746,6 @@ const ExportFabric = () => {
         'จำนวน (หลา)'
       ];
 
-      // Style headers
       const headerCells = [`A${headerRowStart}`, `B${headerRowStart}`, `C${headerRowStart}`];
       headerCells.forEach(cellAddr => {
         const cell = worksheet.getCell(cellAddr);
@@ -811,7 +764,6 @@ const ExportFabric = () => {
         };
       });
 
-      // Group data by fabric code and sum yards
       const groupedData = {};
       fabricouts.forEach(item => {
         const fabricCode = item.fabricStruct || 'ไม่ระบุ';
@@ -824,23 +776,20 @@ const ExportFabric = () => {
         groupedData[fabricCode].totalYards += parseInt(item.sumYard) || 0;
       });
 
-      // Convert to array and sort by fabric code
       const sortedData = Object.values(groupedData).sort((a, b) => 
         a.fabricCode.localeCompare(b.fabricCode)
       );
 
-      // Add data rows
       sortedData.forEach((item, index) => {
         const rowNum = headerRowStart + 1 + index;
         const row = worksheet.getRow(rowNum);
         
         row.values = [
-          index + 1, // ลำดับที่
+          index + 1,
           item.fabricCode,
-          item.totalYards.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') // เพิ่ม comma
+          item.totalYards.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
         ];
 
-        // Style data rows
         row.eachCell((cell, colNumber) => {
           cell.border = {
             top: { style: 'thin', color: { argb: 'B7B7B7' } },
@@ -850,20 +799,16 @@ const ExportFabric = () => {
           };
           
           if (colNumber === 1) {
-            // ลำดับที่ - จัดกลาง
             cell.alignment = { horizontal: 'center', vertical: 'middle' };
             cell.font = { bold: true, size: 9 };
           } else if (colNumber === 2) {
-            // รหัสผ้า - จัดซ้าย
             cell.alignment = { horizontal: 'left', vertical: 'middle' };
             cell.font = { bold: true, size: 9 };
           } else {
-            // จำนวนหลา - จัดกลาง
             cell.alignment = { horizontal: 'center', vertical: 'middle' };
             cell.font = { size: 9 };
           }
 
-          // Alternate row colors
           if (index % 2 === 0) {
             cell.fill = {
               type: 'pattern',
@@ -880,41 +825,12 @@ const ExportFabric = () => {
         });
       });
 
-      // Add summary row
-      // const summaryRowNum = headerRowStart + 1 + sortedData.length;
-      // const summaryRow = worksheet.getRow(summaryRowNum + 1);
-      // const totalYards = sortedData.reduce((sum, item) => sum + item.totalYards, 0);
-      // summaryRow.values = [
-      //   '', // เว้นว่างคอลัมน์ลำดับที่
-      //   'รวมทั้งหมด',
-      //   totalYards.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-      // ];
-
-      // // Style summary row
-      // summaryRow.eachCell((cell) => {
-      //   cell.font = { bold: true, size: 10 };
-      //   cell.fill = {
-      //     type: 'pattern',
-      //     pattern: 'solid',
-      //     fgColor: { argb: 'FFE699' }
-      //   };
-      //   cell.border = {
-      //     top: { style: 'medium' },
-      //     left: { style: 'medium' },
-      //     bottom: { style: 'medium' },
-      //     right: { style: 'medium' }
-      //   };
-      //   cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      // });
-
-      // Set column widths optimized for A4 portrait
       worksheet.columns = [
-        { width: 10 }, // ลำดับที่ - แคบ
-        { width: 35 }, // รหัสผ้า - ขยายเพราะมีพื้นที่เหลือมาก
-        { width: 30 }  // จำนวนหลา - ขยาย
+        { width: 10 },
+        { width: 35 },
+        { width: 30 }
       ];
 
-      // Generate Excel file
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { 
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
@@ -929,6 +845,174 @@ const ExportFabric = () => {
       alert('เกิดข้อผิดพลาดในการส่งออกไฟล์ Excel V2');
     }
   };
+
+
+  // ✅ Export ข้อมูลที่เห็นบนหน้าจอ + เงื่อนไขตัวกรอง
+const exportCurrentViewToExcel = async () => {
+  try {
+    if (!fabricouts || fabricouts.length === 0) {
+      alert('ไม่มีข้อมูลให้ส่งออก');
+      return;
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Export Fabric (Current View)');
+
+    // ตั้งค่า A4
+    worksheet.pageSetup = {
+      paperSize: 9,
+      orientation: 'landscape',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      margins: {
+        left: 0.5,
+        right: 0.5,
+        top: 0.75,
+        bottom: 0.75,
+        header: 0.3,
+        footer: 0.3
+      }
+    };
+
+    // ---------- Header ----------
+    worksheet.mergeCells('A1:G1');
+    const titleCell = worksheet.getCell('A1');
+    titleCell.value = 'รายงานรายการสินค้าส่งออกจากคลัง ';
+    titleCell.font = { bold: true, size: 14 };
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+    // แสดงรายละเอียด filter
+    const filterText = [
+      `ประเภทบิล: ${filters.vatType || 'ทั้งหมด'}`,
+      `เดือน: ${filters.month ? getMonthName(String(filters.month)) : 'ทั้งหมด'}`,
+      `ปี: ${filters.year || 'ทั้งหมด'}`
+    ].join(' | ');
+
+    worksheet.mergeCells('A2:G2');
+    const filterCell = worksheet.getCell('A2');
+    filterCell.value = filterText;
+    filterCell.font = { size: 11, italic: true, color: { argb: 'FF555555' } };
+    filterCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+    worksheet.addRow([]); // เว้น 1 แถว
+
+    // ---------- Header ตาราง ----------
+    const headerRow = worksheet.addRow([
+      'เลขที่บิล',
+      'วัน/เดือน/ปี',
+      'รหัสผ้า',
+      'ชื่อผู้สั่ง',
+      'ชื่อผู้รับ',
+      'พับ',
+      'หลา'
+    ]);
+
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, size: 11 };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFC000' } // ส้มอ่อน
+      };
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+    });
+
+    // ---------- Data rows ----------
+    fabricouts.forEach((item) => {
+      const row = worksheet.addRow([
+        item.billNumber || `${item.vatType || ''} ${item.vatNo || ''}`,
+        formatDate(item.createDate),
+        item.fabricStruct || item.vatType || '-',
+        item.customerName || '-',
+        item.receiveName || '-',
+        item.fold || 0,
+        item.sumYard || 0
+      ]);
+
+      row.eachCell((cell, col) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+
+        if ([6, 7].includes(col)) {
+          // จำนวน
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          cell.numFmt = '#,##0';
+        } else {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        }
+      });
+    });
+
+    // ---------- Total Row ----------
+    const totalFold = fabricouts.reduce((sum, i) => sum + (Number(i.fold) || 0), 0);
+    const totalYard = fabricouts.reduce((sum, i) => sum + (Number(i.sumYard) || 0), 0);
+
+    const totalRow = worksheet.addRow([
+      'รวมทั้งหมด',
+      '',
+      '',
+      '',
+      '',
+      totalFold,
+      totalYard
+    ]);
+
+    totalRow.eachCell((cell, col) => {
+      cell.font = { bold: true };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE2EFDA' } // เขียวอ่อน
+      };
+      cell.border = {
+        top: { style: 'medium' },
+        left: { style: 'thin' },
+        bottom: { style: 'medium' },
+        right: { style: 'thin' }
+      };
+      cell.alignment = { horizontal: col >= 6 ? 'right' : 'center', vertical: 'middle' };
+      if ([6, 7].includes(col)) {
+        cell.numFmt = '#,##0';
+      }
+    });
+
+    // ---------- Column width ----------
+    worksheet.columns = [
+      { width: 15 }, // เลขที่บิล
+      { width: 15 }, // วัน/เดือน/ปี
+      { width: 25 }, // รหัสผ้า
+      { width: 30 }, // ชื่อผู้สั่ง
+      { width: 25 }, // ชื่อผู้รับ
+      { width: 10 }, // พับ
+      { width: 12 }  // หลา
+    ];
+
+    // ---------- Save file ----------
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+
+    const fileName = `export-fabric-screen_${filters.vatType || 'ALL'}_${filters.year || 'ALL'}_${filters.month || 'ALL'}.xlsx`;
+    saveAs(blob, fileName);
+
+    console.log('✅ Export current view excel success');
+  } catch (err) {
+    console.error('❌ Error exporting current view excel:', err);
+    alert('เกิดข้อผิดพลาดในการส่งออก Excel ตามหน้าจอ');
+  }
+};
 
   // Helper function to get month name in Thai
   const getMonthName = (month) => {
@@ -1033,7 +1117,6 @@ const ExportFabric = () => {
                     onClick={handleClearFilters}
                     disabled={loading}
                   >
-                    
                      ล้างตัวกรอง
                   </button>
                   <button 
@@ -1052,11 +1135,19 @@ const ExportFabric = () => {
                   >
                     📋 ส่งออก A4 (สรุป)
                   </button>
+                    {/* ✅ ปุ่มใหม่: export ตามหน้าจอ */}
+  <button
+    className='btn btn-outline-secondary ms-2'
+    style={{ width: '210px', height: '40px', borderRadius: '20px' }}
+    onClick={exportCurrentViewToExcel}
+    disabled={loading || fabricouts.length === 0}
+  >
+    ⬇ ดาวน์โหลด Excel (ตามหน้าจอ)
+  </button>
                 </div>
             </div>
         </div>
 
-      
         <div className="table ">
           <table className="table table" style={{ borderRadius: '15px', overflow: 'hidden', border: 'none' }}>
             <thead style={{ backgroundColor: '#ff8c00' }}>
@@ -1068,7 +1159,6 @@ const ExportFabric = () => {
                   padding: '15px 8px',
                   fontWeight: '600',
                   color: 'black'
-                  
                 }}>เลขที่บิล</th>
                 <th className="text-center" style={{ 
                   width: '10%', 
@@ -1141,9 +1231,10 @@ const ExportFabric = () => {
                 </tr>
               ) : (
                 fabricouts.map((item, index) => (
-                  <tr key={`${item.vatType}-${item.vatNo}-${index}`} style={{ backgroundColor: '#fff' }}>
+                  <tr key={`${item.refId || `${item.vatType}-${item.vatNo}`}-${index}`} style={{ backgroundColor: '#fff' }}>
                     <td className="text-center fw-bold " style={{ padding: '12px 8px', border: '1px solid #f1f3f4' }}>
-                      {item.vatType} {item.vatNo}
+                      {/* ✅ แสดงเลขที่บิลจาก billNumber */}
+                      {item.billNumber || `${item.vatType || ''} ${item.vatNo || ''}`}
                     </td>
                     <td className="text-center" style={{ padding: '12px 8px', border: '1px solid #f1f3f4' }}>
                       {formatDate(item.createDate)}
