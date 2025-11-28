@@ -4,6 +4,9 @@ import { Routes, Route } from 'react-router-dom';
 import Dashboard from './Components/Dashboard';
 import Users from './Components/Users';
 import ExportFabric from './Components/ExportFabric';
+import ExportFabricServerExport from './Components/ExportFabricServerExport';
+import ExportFabricA4 from './Components/ExportFabricA4';
+
 import Orders from './Components/Orders';
 import Stock from './Components/Stock';
 import RawMaterialInventory from './Components/RawMaterialInventory';
@@ -19,6 +22,8 @@ const MyRoute = () => {
       <Route path="/orders" element={<Orders />} />
       <Route path="/stock" element={<Stock />} />
       <Route path="/export-fabric" element={<ExportFabric />} />
+      <Route path="/ExportFabricServerExport" element={<ExportFabricServerExport/>} />
+      <Route path="/ExportFabricA4" element={<ExportFabricA4/>} />
       
       {/* หน้าที่เฉพาะ Admin เท่านั้น */}
       <Route path="/users" element={

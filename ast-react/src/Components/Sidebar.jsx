@@ -24,17 +24,36 @@ const Sidebar = () => {
   const menuItems = [
     { path: '/', label: 'หน้าแรก', icon: 'bi bi-house' },
     { path: '/users', label: 'ผู้ใช้งาน', icon: 'bi bi-person' },
-    { path: '/export-fabric', label: 'รายการสินค้าส่งออกจากคลัง', icon: 'bi bi-box-arrow-up' },
+    { path: '/export-fabric', label: 'รายงานสินค้าส่งออกจากคลัง', icon: 'bi bi-box-arrow-up' },
+    { path: '/ExportFabricServerExport', label: 'รายงานสินค้าเข้า/ออก คลัง', icon: 'bi bi-box-arrow-up' },
+    { path: '/ExportFabricA4', label: 'รายงานคลัง', icon: 'bi bi-box-arrow-up' },
+    
     { path: '/orders', label: 'ออเดอร์', icon: 'bi bi-cart' },
     // { path: '/stock', label: 'สต็อกผ้า', icon: 'bi bi-box' },
     { path: '/instant', label: 'สินค้าสำเร็จรูป', icon: 'bi bi-archive' },
     { path: '/rawmaterialinventory', label: 'สต็อกวัตถุดิบ', icon: 'bi bi-layers' },
-    { path: '/settings', label: 'ตั้งค่า', icon: 'bi bi-gear' }
+    { path: '/settings', label: 'ตั้งค่า', icon: 'bi bi-gear' },
+      // ⭐ เพิ่มเมนูใหม่ ⭐
+  { 
+    path: 'external-ast',
+    label: 'ระบบบันทึกข้อมูล',
+    icon: 'bi bi-journal-text',
+    external: true,
+    url: 'https://ast-manufacturing.com/'
+  }
   ];
 
-  const handleNavigation = (path) => {
-    navigate(path);
-  };
+const handleNavigation = (item) => {
+  if (item.external) {
+    window.open(item.url, '_blank');
+  } else {
+    navigate(item.path);
+  }
+};
+
+  // const handleNavigation = (path) => {
+  //   navigate(path);
+  // };
 
   const isActive = (path) => {
     return location.pathname === path;
@@ -106,7 +125,9 @@ const Sidebar = () => {
                   borderRadius: '8px',
                   transition: 'all 0.2s ease'
                 }}
-                onClick={() => handleNavigation(item.path)}
+                // onClick={() => handleNavigation(item.path)}
+onClick={() => handleNavigation(item)}
+
                 onMouseEnter={(e) => {
                   if (!isActive(item.path)) {
                     e.currentTarget.style.backgroundColor = '';

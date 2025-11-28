@@ -1037,7 +1037,7 @@ const ExportFabric = () => {
           className='text-black p-4 bg-white  mb-4'
           style={{ borderRadius: '15px', border: '2px solid #eee' }}
         >
-          <h5 className="fw-bold">เลือกรายการสินค้าที่ต้องการดูคลัง</h5>
+          <h5 className="fw-bold">รายงานส่งผ้าออกจากคลัง</h5>
           <p className="text-muted pt-2">เรียงตามเลขที่บิลที่ส่ง</p>
 
           <div className='d-flex  align-items-center pb-2'>
@@ -1128,7 +1128,7 @@ const ExportFabric = () => {
                 ล้างตัวกรอง
               </button>
 
-              <button
+              {/* <button
                 className='btn btn-success'
                 style={{ width: '150px', height: '40px', borderRadius: '20px' }}
                 onClick={handleShowExportModal}
@@ -1145,14 +1145,14 @@ const ExportFabric = () => {
               >
                 📋 ส่งออก A4 (สรุป)
               </button>
-
-              <button
-                className='btn btn-outline-secondary ms-2'
-                style={{ width: '210px', height: '40px', borderRadius: '20px' }}
+ */}
+                              <button
+                className='btn btn-success'
+                style={{ width: '150px', height: '40px', borderRadius: '20px' }}
                 onClick={exportCurrentViewToExcel}
                 disabled={loading || fabricouts.length === 0}
               >
-                ⬇ ดาวน์โหลด Excel (ตามหน้าจอ)
+                📊 ส่งออก Excel
               </button>
             </div>
           </div>
