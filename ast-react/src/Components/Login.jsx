@@ -35,27 +35,24 @@ const Login = ({ onLogin }) => {
       setLoading(true);
       setError('');
       
-      console.log('🔐 Attempting login with:', { email: formData.email });
-      
       const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
         email: formData.email,
         password: formData.password
       });
 
-      console.log('✅ Login response:', response.data);
-
       if (response.data.success) {
         setSuccess(response.data.message);
-        
-        // Store user data in localStorage
+
+        // Store user data and token in localStorage
         localStorage.setItem('user', JSON.stringify(response.data.user));
-        
+        if (response.data.token) {
+          localStorage.setItem('token', response.data.token);
+        }
+
         // Call parent onLogin function
         if (onLogin) {
           onLogin(response.data.user);
         }
-        
-        console.log('✅ Login successful, user data stored');
       } else {
         setError(response.data.message || 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
       }

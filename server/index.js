@@ -4,9 +4,11 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const { testConnection } = require('./config/database');
+const { verifyToken } = require('./middleware/auth');
 
 // Import routes
 const userRoutes = require('./routes/userRoutes');
@@ -23,7 +25,20 @@ const app = express();
 const PORT = process.env.SERVER_PORT || 8000;
 
 // Middleware
-app.use(cors());
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://dashboard.ast-manufacturing.com',
+];
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, mobile apps, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../build')));
 
@@ -41,26 +56,6 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
 
-    console.log(`🔍 Authenticating user: ${email}`);
-    
-    // Debug: ตรวจสอบข้อมูลผู้ใช้ในฐานข้อมูลก่อน
-    const [debugRows] = await pool.execute('SELECT id, name, email, user_type, LEFT(password, 20) as password_preview FROM users WHERE email = ?', [email]);
-    if (debugRows.length > 0) {
-      console.log('🔍 User found in database:', {
-        id: debugRows[0].id,
-        name: debugRows[0].name,
-        email: debugRows[0].email,
-        user_type: debugRows[0].user_type,
-        password_preview: debugRows[0].password_preview
-      });
-    } else {
-      console.log('❌ User not found in database');
-      return res.status(401).json({
-        success: false,
-        message: 'Email หรือ Password ไม่ถูกต้อง'
-      });
-    }
-    
     const user = await User.authenticate(email, password);
     
     if (!user) {
@@ -71,11 +66,18 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
 
-    console.log(`Login successful for user: ${user.name}`);
-    
+    // intentionally not logging user details here
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, user_type: user.user_type },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
+    );
+
     res.json({
       success: true,
       message: 'เข้าสู่ระบบสำเร็จ',
+      token,
       user: {
         id: user.id,
         name: user.name,
@@ -159,86 +161,20 @@ app.get('/api/auth/me', async (req, res) => {
   });
 });
 
-// Update user password (for testing/admin purposes)
-app.post('/api/auth/update-password', async (req, res) => {
-  console.log('🔑 Password update attempt');
-  
-  try {
-    const { email, newPassword } = req.body;
-    
-    if (!email || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'กรุณากรอก email และ password ใหม่'
-      });
-    }
+// NOTE: /api/auth/update-password and /api/auth/debug-user have been removed.
+// Password changes must be done through the user management page with proper authentication.
 
-    const bcrypt = require('bcrypt');
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
-    
-    const [result] = await pool.execute(
-      'UPDATE users SET password = ?, updated_at = NOW() WHERE email = ?',
-      [hashedPassword, email]
-    );
-    
-    if (result.affectedRows > 0) {
-      console.log(`✅ Password updated for: ${email}`);
-      res.json({
-        success: true,
-        message: 'อัปเดตรหัสผ่านสำเร็จ',
-        hashedPassword: hashedPassword
-      });
-    } else {
-      res.status(404).json({
-        success: false,
-        message: 'ไม่พบผู้ใช้งาน'
-      });
-    }
-    
-  } catch (error) {
-    console.error('❌ Password update error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'เกิดข้อผิดพลาดในระบบ'
-    });
-  }
-});
-
-// Debug endpoint to check user data
-app.post('/api/auth/debug-user', async (req, res) => {
-  try {
-    const { email } = req.body;
-    const [rows] = await pool.execute('SELECT id, name, email, user_type, LEFT(password, 60) as password_hash FROM users WHERE email = ?', [email]);
-    
-    if (rows.length > 0) {
-      res.json({
-        found: true,
-        user: rows[0]
-      });
-    } else {
-      res.json({
-        found: false,
-        message: 'User not found'
-      });
-    }
-  } catch (error) {
-    console.error('Debug user error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// API Routes
-app.use('/api/users', userRoutes);
-app.use('/api/order', orderRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/purchase-orders', purchaseOrderRoutes);
-app.use('/api/raw-materials', rawMaterialRoutes);
-app.use('/api/orders', orders);
+// API Routes (protected)
+app.use('/api/users', verifyToken, userRoutes);
+app.use('/api/order', verifyToken, orderRoutes);
+app.use('/api/dashboard', verifyToken, dashboardRoutes);
+app.use('/api/purchase-orders', verifyToken, purchaseOrderRoutes);
+app.use('/api/raw-materials', verifyToken, rawMaterialRoutes);
+app.use('/api/orders', verifyToken, orders);
 // ===============================
 // Fabricouts API (refId grouped)
 // ===============================
-app.get('/api/fabricouts', async (req, res) => {
+app.get('/api/fabricouts', verifyToken, async (req, res) => {
   console.log('📊 Fabricouts API called, query:', req.query);
 
   // helper รวมข้อมูลต่อใบส่ง
@@ -339,7 +275,7 @@ app.get('/api/fabricouts', async (req, res) => {
 // Fabricouts API endpoint
 
 // Stockfabrics API endpoint
-app.get('/api/stockfabrics', async (req, res) => {
+app.get('/api/stockfabrics', verifyToken, async (req, res) => {
   console.log('📦 Stockfabrics API called');
   
   try {
@@ -411,9 +347,11 @@ app.get('/api/stockfabrics', async (req, res) => {
     console.error('❌ Error fetching stockfabrics:', error.message);
     console.error('Error details:', error);
     
-    //
-    console.log('🔄 Returning mock stockfabrics data due to error');
-    res.json(mockData);
+    res.status(500).json({
+      success: false,
+      message: 'เกิดข้อผิดพลาดในการดึงข้อมูล stockfabrics',
+      error: error.message,
+    });
   }
 });
 
