@@ -104,25 +104,7 @@ class User {
 
       console.log('🔍 Found user:', user.name, 'Email:', user.email);
       
-      // ตรวจสอบรหัสผ่าน - รองรับทั้ง bcrypt hash และ plain text
-      let isPasswordValid = false;
-      
-      // ตรวจสอบว่ารหัสผ่านเป็น bcrypt hash หรือไม่ (เริ่มด้วย $2b$ หรือ $2a$)
-      if (user.password.startsWith('$2b$') || user.password.startsWith('$2a$')) {
-        // รหัสผ่านเป็น bcrypt hash
-        try {
-          isPasswordValid = await bcrypt.compare(password, user.password);
-          console.log('🔍 Bcrypt compare result:', isPasswordValid);
-        } catch (bcryptError) {
-          console.log('⚠️ Bcrypt compare failed:', bcryptError.message);
-          isPasswordValid = false;
-        }
-      } else {
-        // รหัสผ่านเป็น plain text - เปรียบเทียบตรงๆ
-        isPasswordValid = user.password === password;
-        console.log('🔍 Plain text compare result:', isPasswordValid);
-        console.log('🔍 Expected:', user.password, 'Got:', password);
-      }
+      const isPasswordValid = await bcrypt.compare(password, user.password);
 
       if (isPasswordValid) {
         console.log('✅ Password validation successful');

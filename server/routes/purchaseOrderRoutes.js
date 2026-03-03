@@ -1,18 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const mysql = require('mysql2/promise');
-
-// Database configuration (สำหรับทดสอบ)
-const dbConfig = {
-  host: process.env.DATABASE_HOST || '128.199.238.141',
-  user: process.env.DATABASE_USER || 'astReact',
-  password: process.env.DATABASE_PASSWORD || '12345678Q',
-  database: process.env.DATABASE_NAME || 'ast',
-  port: process.env.DATABASE_PORT || 3306
-};
-
-// Create connection pool
-const pool = mysql.createPool(dbConfig);
+const { pool } = require('../config/database');
 
 // GET /api/purchase-orders - ดึงข้อมูล purchase orders ทั้งหมด
 router.get('/', async (req, res) => {

@@ -19,8 +19,8 @@ class AuthController {
       // Generate JWT token
       const token = jwt.sign(
         { id: user.id, email: user.email, userType: user.user_type },
-        process.env.JWT_SECRET || 'your-secret-key',
-        { expiresIn: '24h' }
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
       );
 
       res.json({
@@ -81,7 +81,7 @@ class AuthController {
     }
 
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
       req.user = decoded;
       next();
     } catch (error) {
@@ -89,22 +89,6 @@ class AuthController {
     }
   }
 
-  // Test password against hash
-  async testPassword(req, res) {
-    try {
-      const { password, hash } = req.body;
-      const isMatch = await bcrypt.compare(password, hash);
-      
-      res.json({
-        password: password,
-        hash: hash,
-        isMatch: isMatch
-      });
-    } catch (error) {
-      console.error('Test password error:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  }
 }
 
 module.exports = new AuthController();

@@ -2,11 +2,18 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
+const required = ['DATABASE_HOST', 'DATABASE_USER', 'DATABASE_PASSWORD', 'DATABASE_NAME'];
+const missing = required.filter(k => !process.env[k]);
+if (missing.length > 0) {
+  console.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
+  process.exit(1);
+}
+
 const dbConfig = {
-  host: process.env.DATABASE_HOST || '128.199.238.141',
-  user: process.env.DATABASE_USER || 'astReact',
-  password: process.env.DATABASE_PASSWORD || '12345678Q',
-  database: process.env.DATABASE_NAME || 'ast',
+  host: process.env.DATABASE_HOST,
+  user: process.env.DATABASE_USER,
+  password: process.env.DATABASE_PASSWORD,
+  database: process.env.DATABASE_NAME,
   port: process.env.DATABASE_PORT || 3306,
   waitForConnections: true,
   connectionLimit: 10,
@@ -26,12 +33,6 @@ async function testConnection() {
     return true;
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
-    console.log('⚠️  Server will continue running but database features may not work');
-    console.log(`🔧 Check your database configuration:`);
-    console.log(`   - Host: ${dbConfig.host}`);
-    console.log(`   - Port: ${dbConfig.port}`);
-    console.log(`   - Database: ${dbConfig.database}`);
-    console.log(`   - User: ${dbConfig.user}`);
     return false;
   }
 }
