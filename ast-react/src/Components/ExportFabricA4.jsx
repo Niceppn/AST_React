@@ -6,11 +6,14 @@ import { saveAs } from "file-saver";
 import { API_BASE_URL } from "@/config/apiBase";
 
 const ExportFabricA4 = () => {
-  const [fabricouts, setFabricouts] = useState([]);
+  const [fabricouts, setFabricouts] = useState([]);     // 🔴 ส่งออก
+  const [stockfabrics, setStockfabrics] = useState([]); // 🟢 รับเข้า
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // เพิ่ม day สำหรับเลือก "ณ วันที่"
   const [filters, setFilters] = useState({
+    day: "",
     month: "",
     year: "",
     vatType: "",
@@ -51,19 +54,48 @@ const ExportFabricA4 = () => {
     return `${dd}/${mm}/${yyyy}`;
   };
 
-  // ---------- ดึง fabricouts ตาม filter ----------
+  const buildAsOfDate = () => {
+    const { day, month, year } = filters;
+    const d = Number(day);
+    const m = Number(month);
+    const y = Number(year);
+    if (!d || !m || !y) return null;
+    const date = new Date(y, m - 1, d);
+    if (isNaN(date.getTime())) return null;
+    return date;
+  };
+
+  // ---------- ดึง fabricouts (ส่งออก) ตาม filter ----------
   const fetchFabricouts = async () => {
+    const { month, year, vatType } = filters;
+
+    const params = new URLSearchParams({ limit: "15000" });
+    if (month) params.append("month", month);
+    if (year) params.append("year", year);
+    if (vatType) params.append("vatType", vatType);
+
+    const url = `${API_BASE_URL}/api/fabricouts?${params.toString()}`;
+    console.log("🌐 [A4] fabricouts URL:", url);
+
+    const res = await axios.get(url);
+    let rows = [];
+    if (Array.isArray(res.data?.data)) rows = res.data.data;
+    else if (Array.isArray(res.data)) rows = res.data;
+    else rows = [];
+
+    rows.sort((a, b) => new Date(a.createDate) - new Date(b.createDate));
+    setFabricouts(rows);
+  };
+
+  // ---------- ดึง stockfabrics (รับเข้า) ----------
+  const fetchStockfabrics = async () => {
     try {
-      setLoading(true);
-      setError(null);
+      const { year } = filters;
+      const params = new URLSearchParams({ limit: "50000" });
+      if (year) params.append("year", year); // ถ้ามีปี ส่งไปช่วยจำกัดข้อมูล
 
-      const params = new URLSearchParams({ limit: "15000" });
-      if (filters.month) params.append("month", filters.month);
-      if (filters.year) params.append("year", filters.year);
-      if (filters.vatType) params.append("vatType", filters.vatType);
-
-      const url = `${API_BASE_URL}/api/fabricouts?${params.toString()}`;
-      console.log("🌐 [A4] Request URL:", url);
+      const url = `${API_BASE_URL}/api/stockfabrics?${params.toString()}`;
+      console.log("🌐 [A4] stockfabrics URL:", url);
 
       const res = await axios.get(url);
       let rows = [];
@@ -72,55 +104,118 @@ const ExportFabricA4 = () => {
       else rows = [];
 
       rows.sort((a, b) => new Date(a.createDate) - new Date(b.createDate));
-      setFabricouts(rows);
+      setStockfabrics(rows);
     } catch (err) {
-      console.error("❌ [A4] Error fetching fabricouts:", err);
+      console.error("❌ [A4] Error fetching stockfabrics:", err);
+      setStockfabrics([]);
+    }
+  };
+
+  const handleSearch = async () => {
+    const asOfDate = buildAsOfDate();
+    if (!asOfDate) {
+      alert("กรุณาเลือก วันที่ / เดือน / ปี ให้ครบก่อน");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      await fetchFabricouts();
+      await fetchStockfabrics();
+    } catch (err) {
+      console.error("❌ [A4] handleSearch error:", err);
       setError("ไม่สามารถโหลดข้อมูลได้");
       setFabricouts([]);
+      setStockfabrics([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSearch = () => {
-    fetchFabricouts();
-  };
-
   const handleClearFilters = () => {
     setFilters({
+      day: "",
       month: "",
       year: "",
       vatType: "",
     });
     setFabricouts([]);
+    setStockfabrics([]);
     setError(null);
   };
 
-  // ---------- สรุปข้อมูลตามรหัสผ้า (ใช้ทั้ง preview + export) ----------
+  // ---------- สรุปข้อมูล ณ วันที่เลือก ----------
+  // stockfabrics = รับเข้า, fabricouts = ส่งออก
   const summaryRows = useMemo(() => {
-    if (!fabricouts || fabricouts.length === 0) return [];
+    const asOfDate = buildAsOfDate();
+    if (!asOfDate) return [];
 
-    const grouped = {};
-    fabricouts.forEach((item) => {
-      const fabricCode = item.fabricStruct || "ไม่ระบุ";
-      if (!grouped[fabricCode]) {
-        grouped[fabricCode] = 0;
+    const groups = new Map();
+
+    const ensureGroup = (code) => {
+      if (!groups.has(code)) {
+        groups.set(code, {
+          fabricCode: code,
+          totalIn: 0,   // รับเข้า (จาก stockfabrics)
+          totalOut: 0,  // ส่งออก (จาก fabricouts)
+          balance: 0,
+        });
       }
-      grouped[fabricCode] += parseInt(item.sumYard) || 0;
+      return groups.get(code);
+    };
+
+    // 🟢 รวม "รับเข้า" จาก stockfabrics <= as-of
+    stockfabrics.forEach((s) => {
+      const d = new Date(s.createDate);
+      if (isNaN(d.getTime()) || d > asOfDate) return;
+
+      const code = s.fabricStruct || s.fabricId || s.refId || "ไม่ระบุ";
+      const qty = parseInt(s.sumYard) || 0;
+      const g = ensureGroup(code);
+      g.totalIn += qty;
     });
 
-    const list = Object.entries(grouped)
-      .map(([code, qty]) => ({
-        fabricCode: code,
-        totalYards: qty,
+    // 🔴 รวม "ส่งออก" จาก fabricouts <= as-of
+    fabricouts.forEach((item) => {
+      const d = new Date(item.createDate);
+      if (isNaN(d.getTime()) || d > asOfDate) return;
+
+      // filter vatType อีกชั้น เผื่อ backend ยังไม่ได้กรอง
+      if (filters.vatType && item.vatType !== filters.vatType) return;
+
+      const code = item.fabricStruct || "ไม่ระบุ";
+      const qty = parseInt(item.sumYard) || 0;
+      const g = ensureGroup(code);
+      g.totalOut += qty;
+    });
+
+    // คำนวณคงเหลือ = รับเข้า - ส่งออก
+    const list = Array.from(groups.values())
+      .map((g) => ({
+        ...g,
+        balance: g.totalIn - g.totalOut,
       }))
+      .filter(
+        (row) =>
+          row.totalIn !== 0 || row.totalOut !== 0 || row.balance !== 0
+      )
       .sort((a, b) => a.fabricCode.localeCompare(b.fabricCode));
 
     return list;
-  }, [fabricouts]);
+  }, [fabricouts, stockfabrics, filters]);
 
-  const grandTotal = useMemo(
-    () => summaryRows.reduce((sum, it) => sum + (it.totalYards || 0), 0),
+  // รวมยอดทั้งหมด footer
+  const totals = useMemo(
+    () =>
+      summaryRows.reduce(
+        (acc, r) => ({
+          in: acc.in + (r.totalIn || 0),
+          out: acc.out + (r.totalOut || 0),
+          balance: acc.balance + (r.balance || 0),
+        }),
+        { in: 0, out: 0, balance: 0 }
+      ),
     [summaryRows]
   );
 
@@ -128,9 +223,12 @@ const ExportFabricA4 = () => {
   const exportToExcelA4 = async () => {
     try {
       if (!summaryRows || summaryRows.length === 0) {
-        alert("ไม่มีข้อมูลให้ส่งออก กรุณากดค้นหาก่อน");
+        alert("ไม่มีข้อมูลให้ส่งออก กรุณาเลือกวันที่และกดค้นหาก่อน");
         return;
       }
+
+      const asOfDate = buildAsOfDate();
+      const hasDate = !!asOfDate;
 
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("สรุปรายงานสินค้า V2");
@@ -165,26 +263,28 @@ const ExportFabricA4 = () => {
       ];
 
       // ----- หัวรายงาน -----
-      worksheet.mergeCells("A1:C1");
+      worksheet.mergeCells("A1:E1");
       const titleCell = worksheet.getCell("A1");
       titleCell.value = "บริษัท เอเซียเท็กซ์ไทล์ จำกัด";
       titleCell.font = { size: 14, bold: true };
       titleCell.alignment = { horizontal: "center", vertical: "middle" };
 
-      worksheet.mergeCells("A2:C2");
+      worksheet.mergeCells("A2:E2");
       const titleCell2 = worksheet.getCell("A2");
       titleCell2.value = "สรุปรายงานสินค้าและสำเร็จรูป";
       titleCell2.font = { size: 14, bold: true };
       titleCell2.alignment = { horizontal: "center", vertical: "middle" };
 
-      worksheet.mergeCells("A3:C3");
+      worksheet.mergeCells("A3:E3");
       const dateCell = worksheet.getCell("A3");
       let periodText = "";
 
-      if (filters.month && filters.year) {
-        periodText = `ณ เดือน ${getMonthName(filters.month)} ${filters.year}`;
-      } else if (filters.year) {
-        periodText = `ณ ปี ${filters.year}`;
+      if (hasDate) {
+        const d = asOfDate;
+        periodText = `ณ วันที่ ${String(d.getDate()).padStart(
+          2,
+          "0"
+        )}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
       } else {
         periodText = `ณ วันที่: ${formatDate(new Date().toISOString())}`;
       }
@@ -196,9 +296,15 @@ const ExportFabricA4 = () => {
       // ----- หัวตาราง -----
       const headerRowStart = 5;
       const headerRow = worksheet.getRow(headerRowStart);
-      headerRow.values = ["ลำดับที่", "รายการ", "จำนวน (หลา)"];
+      headerRow.values = [
+        "ลำดับที่",
+        "รายการ",
+        "รับเข้า (หลา)",
+        "ส่งออก (หลา)",
+        "คงเหลือ (หลา)",
+      ];
 
-      ["A", "B", "C"].forEach((col) => {
+      ["A", "B", "C", "D", "E"].forEach((col) => {
         const cell = worksheet.getCell(`${col}${headerRowStart}`);
         cell.font = { bold: true, color: { argb: "FFFFFF" }, size: 10 };
         cell.fill = {
@@ -215,12 +321,18 @@ const ExportFabricA4 = () => {
         };
       });
 
-      // ----- เติมข้อมูลจาก summaryRows (เหมือนตารางหน้าเว็บ) -----
+      // ----- เติมข้อมูลจาก summaryRows -----
       summaryRows.forEach((item, index) => {
         const rowNum = headerRowStart + 1 + index;
         const row = worksheet.getRow(rowNum);
 
-        row.values = [index + 1, item.fabricCode, item.totalYards];
+        row.values = [
+          index + 1,
+          item.fabricCode,
+          item.totalIn,
+          item.totalOut,
+          item.balance,
+        ];
 
         row.eachCell((cell, colNumber) => {
           cell.border = {
@@ -261,7 +373,13 @@ const ExportFabricA4 = () => {
       // ----- รวมทั้งหมดด้านล่าง -----
       const totalRowIdx = headerRowStart + 1 + summaryRows.length;
       const totalRow = worksheet.getRow(totalRowIdx);
-      totalRow.values = ["", "รวมทั้งหมด", grandTotal];
+      totalRow.values = [
+        "",
+        "รวมทั้งหมด",
+        totals.in,
+        totals.out,
+        totals.balance,
+      ];
 
       totalRow.eachCell((cell, colNumber) => {
         cell.font = { bold: true, size: 10 };
@@ -273,7 +391,7 @@ const ExportFabricA4 = () => {
         };
         if (colNumber === 2) {
           cell.alignment = { horizontal: "right", vertical: "middle" };
-        } else if (colNumber === 3) {
+        } else if ([3, 4, 5].includes(colNumber)) {
           cell.alignment = { horizontal: "center", vertical: "middle" };
           cell.numFmt = "#,##0";
         }
@@ -282,17 +400,26 @@ const ExportFabricA4 = () => {
       worksheet.columns = [
         { width: 10 },
         { width: 40 },
-        { width: 20 },
+        { width: 16 },
+        { width: 16 },
+        { width: 16 },
       ];
+
+      // ตั้งชื่อไฟล์
+      let asOfLabel = "ALL";
+      const asOf = buildAsOfDate();
+      if (asOf) {
+        asOfLabel = `${asOf.getFullYear()}-${String(
+          asOf.getMonth() + 1
+        ).padStart(2, "0")}-${String(asOf.getDate()).padStart(2, "0")}`;
+      }
+
+      const fileName = `สรุปรายงานสินค้า_A4_ณวันที่_${asOfLabel}.xlsx`;
 
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
-
-      const fileName = `สรุปรายงานสินค้า_A4_${filters.year || "ALL"}_${
-        filters.month ? getMonthName(filters.month) : "ALL"
-      }_${formatDate(new Date().toISOString()).replace(/\//g, "-")}.xlsx`;
 
       saveAs(blob, fileName);
       console.log("✅ Excel A4 summary exported successfully");
@@ -302,6 +429,8 @@ const ExportFabricA4 = () => {
     }
   };
 
+  const asOfDateForView = buildAsOfDate();
+
   // ---------- JSX ----------
   return (
     <div className="">
@@ -310,14 +439,16 @@ const ExportFabricA4 = () => {
         style={{ borderRadius: "15px", border: "2px solid #eee" }}
       >
         <h5 className="fw-bold">สรุปรายงานสินค้า (A4)</h5>
-        <p className="text-muted pt-2">
-          รวมจำนวนหลาตามรหัสผ้า (สิ่งที่แสดงด้านล่างนี้ จะถูกส่งออกไปเป็นไฟล์ A4)
+        <p className="text-muted pt-2 mb-1">
+          เลือกวันที่เพื่อดู{" "}
+          <strong>ยอดรับเข้า / ส่งออก / คงเหลือสะสม ณ วันนั้น</strong> ตามรหัสผ้า
         </p>
 
         {/* Filter bar */}
-        <div className="d-flex align-items-center pb-2 flex-wrap">
-          <div className="pt-2 me-3">
-            <h6>เลือกประเภทบิล</h6>
+        <div className="d-flex align-items-end pb-2 flex-wrap gap-3">
+          {/* ประเภทบิล */}
+          <div className="pt-2">
+            <h6>เลือกประเภทบิล (สำหรับรายการส่งออก)</h6>
             <select
               className="form-select"
               style={{
@@ -337,19 +468,42 @@ const ExportFabricA4 = () => {
             </select>
           </div>
 
-          <div className="pt-2 me-3">
+          {/* วันที่ */}
+          <div className="pt-2">
+            <h6>วันที่</h6>
+            <select
+              className="form-select"
+              style={{
+                borderRadius: "8px",
+                border: "2px solid #eee",
+                width: "90px",
+              }}
+              value={filters.day}
+              onChange={(e) => handleFilterChange("day", e.target.value)}
+            >
+              <option value="">วันที่</option>
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* เดือน */}
+          <div className="pt-2">
             <h6>เดือน</h6>
             <select
               className="form-select"
               style={{
                 borderRadius: "8px",
                 border: "2px solid #eee",
-                width: "220px",
+                width: "180px",
               }}
               value={filters.month}
               onChange={(e) => handleFilterChange("month", e.target.value)}
             >
-              <option value="">ทั้งหมด</option>
+              <option value="">เดือน</option>
               <option value="1">มกราคม</option>
               <option value="2">กุมภาพันธ์</option>
               <option value="3">มีนาคม</option>
@@ -365,19 +519,20 @@ const ExportFabricA4 = () => {
             </select>
           </div>
 
+          {/* ปี */}
           <div className="pt-2">
             <h6>ปี</h6>
             <select
               className="form-select"
               style={{
                 borderRadius: "8px",
-                border: "2px solid #eee",
-                width: "auto",
+                border: "2px solid #eee",  // ✅ แก้ quote ตรงนี้แล้ว
+                width: "110px",
               }}
               value={filters.year}
               onChange={(e) => handleFilterChange("year", e.target.value)}
             >
-              <option value="">ทั้งหมด</option>
+              <option value="">ปี</option>
               <option value="2023">2023</option>
               <option value="2024">2024</option>
               <option value="2025">2025</option>
@@ -422,6 +577,17 @@ const ExportFabricA4 = () => {
             📋 ส่งออก A4 (สรุป)
           </button>
         </div>
+
+        {asOfDateForView && (
+          <p className="mt-2 text-muted" style={{ fontSize: "0.9rem" }}>
+            แสดงยอดสะสม ณ วันที่{" "}
+            <strong>
+              {String(asOfDateForView.getDate()).padStart(2, "0")}/
+              {String(asOfDateForView.getMonth() + 1).padStart(2, "0")}/
+              {asOfDateForView.getFullYear()}
+            </strong>
+          </p>
+        )}
       </div>
 
       {/* Preview summary (สิ่งนี้ = สิ่งที่จะออกไฟล์) */}
@@ -431,41 +597,55 @@ const ExportFabricA4 = () => {
       >
         <h6 className="fw-bold mb-2">ตัวอย่างข้อมูลที่จะส่งออก</h6>
         <p className="text-muted" style={{ fontSize: "0.9rem" }}>
-          ตารางด้านล่างนี้คือข้อมูลสรุปตามรหัสผ้าที่จะถูกใช้สร้างไฟล์ Excel A4
+          ตารางด้านล่างนี้คือ{" "}
+          <strong>ยอดรับเข้า, ส่งออก และคงเหลือสะสม</strong> แยกตามรหัสผ้า ณ
+          วันที่ที่เลือก
         </p>
 
         <div className="table-responsive">
           <table className="table table-sm table-bordered align-middle">
             <thead className="table-light">
               <tr>
-                <th className="text-center" style={{ width: "10%" }}>
+                <th className="text-center" style={{ width: "8%" }}>
                   ลำดับที่
                 </th>
-                <th className="text-center" style={{ width: "50%" }}>
+                <th className="text-center" style={{ width: "42%" }}>
                   รหัสผ้า
                 </th>
-                <th className="text-center" style={{ width: "20%" }}>
-                  จำนวน (หลา)
+                <th className="text-center" style={{ width: "16%" }}>
+                  รับเข้า (หลา)
+                </th>
+                <th className="text-center" style={{ width: "16%" }}>
+                  ส่งออก (หลา)
+                </th>
+                <th className="text-center" style={{ width: "18%" }}>
+                  คงเหลือสะสม (หลา)
                 </th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="3" className="text-center py-3">
+                  <td colSpan="5" className="text-center py-3">
                     กำลังโหลดข้อมูล...
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan="3" className="text-center text-danger py-3">
+                  <td colSpan="5" className="text-center text-danger py-3">
                     {error}
+                  </td>
+                </tr>
+              ) : !filters.day || !filters.month || !filters.year ? (
+                <tr>
+                  <td colSpan="5" className="text-center py-3">
+                    กรุณาเลือก วันที่ / เดือน / ปี แล้วกด "ค้นหา"
                   </td>
                 </tr>
               ) : summaryRows.length === 0 ? (
                 <tr>
-                  <td colSpan="3" className="text-center py-3">
-                    ยังไม่มีข้อมูล กรุณาเลือกเงื่อนไขและกดค้นหา
+                  <td colSpan="5" className="text-center py-3">
+                    ไม่มีข้อมูล ณ วันที่ที่เลือก
                   </td>
                 </tr>
               ) : (
@@ -475,7 +655,13 @@ const ExportFabricA4 = () => {
                       <td className="text-center">{idx + 1}</td>
                       <td>{row.fabricCode}</td>
                       <td className="text-end">
-                        {Number(row.totalYards).toLocaleString()}
+                        {Number(row.totalIn).toLocaleString()}
+                      </td>
+                      <td className="text-end">
+                        {Number(row.totalOut).toLocaleString()}
+                      </td>
+                      <td className="text-end">
+                        {Number(row.balance).toLocaleString()}
                       </td>
                     </tr>
                   ))}
@@ -483,7 +669,13 @@ const ExportFabricA4 = () => {
                     <td></td>
                     <td className="text-end fw-bold">รวมทั้งหมด</td>
                     <td className="text-end fw-bold">
-                      {grandTotal.toLocaleString()}
+                      {totals.in.toLocaleString()}
+                    </td>
+                    <td className="text-end fw-bold">
+                      {totals.out.toLocaleString()}
+                    </td>
+                    <td className="text-end fw-bold">
+                      {totals.balance.toLocaleString()}
                     </td>
                   </tr>
                 </>

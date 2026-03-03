@@ -26,7 +26,7 @@ const Sidebar = () => {
     { path: '/users', label: 'ผู้ใช้งาน', icon: 'bi bi-person' },
     { path: '/export-fabric', label: 'รายงานสินค้าส่งออกจากคลัง', icon: 'bi bi-box-arrow-up' },
     { path: '/ExportFabricServerExport', label: 'รายงานสินค้าเข้า/ออก คลัง', icon: 'bi bi-box-arrow-up' },
-    { path: '/ExportFabricA4', label: 'รายงานคลัง', icon: 'bi bi-box-arrow-up' },
+    { path: '/ExportFabricA4', label: 'รายงานสรุปยอดคงคลัง', icon: 'bi bi-box-arrow-up' },
     
     { path: '/orders', label: 'ออเดอร์', icon: 'bi bi-cart' },
     // { path: '/stock', label: 'สต็อกผ้า', icon: 'bi bi-box' },
