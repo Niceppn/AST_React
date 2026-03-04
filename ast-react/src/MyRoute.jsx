@@ -13,6 +13,7 @@ import RawMaterialInventory from './Components/RawMaterialInventory';
 import RawMaterialInventoryInfo from './Components/RawMaterialInventoryInfo';
 import AdminRoute from './Components/AdminRoute';
 import RawMaterialInventoryInfo2 from './Components/RawMaterialInventoryInfo2';
+import StockBalance from './Components/StockBalance';
 
 const MyRoute = () => {
   return (
@@ -79,6 +80,13 @@ const MyRoute = () => {
       <Route path="/rawmaterialinventory/info2" element={
         <AdminRoute allowedRoles={['admin', 'materialstaff', 'supermaterialstaff', 'superadmin']}>
           <RawMaterialInventoryInfo2 />
+        </AdminRoute>
+      } />
+
+      {/* Stock Balance */}
+      <Route path="/stock-balance" element={
+        <AdminRoute allowedRoles={['admin', 'superadmin', 'materialstaff', 'supermaterialstaff']}>
+          <StockBalance />
         </AdminRoute>
       } />
     </Routes>

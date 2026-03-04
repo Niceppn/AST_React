@@ -171,6 +171,7 @@ app.use('/api/dashboard', verifyToken, dashboardRoutes);
 app.use('/api/purchase-orders', verifyToken, purchaseOrderRoutes);
 app.use('/api/raw-materials', verifyToken, rawMaterialRoutes);
 app.use('/api/orders', verifyToken, orders);
+app.use('/api/stock-balance', verifyToken, require('./routes/stockBalanceRoutes'));
 // ===============================
 // Fabricouts API (refId grouped)
 // ===============================

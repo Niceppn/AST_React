@@ -32,6 +32,7 @@ const Sidebar = () => {
     // { path: '/stock', label: 'สต็อกผ้า', icon: 'bi bi-box' },
     { path: '/instant', label: 'สินค้าสำเร็จรูป', icon: 'bi bi-archive' },
     { path: '/rawmaterialinventory', label: 'สต็อกวัตถุดิบ', icon: 'bi bi-layers' },
+    { path: '/stock-balance', label: 'ยอดคงเหลือผ้า', icon: 'bi bi-clipboard2-data' },
     { path: '/settings', label: 'ตั้งค่า', icon: 'bi bi-gear' },
       // ⭐ เพิ่มเมนูใหม่ ⭐
   { 
